@@ -1,0 +1,36 @@
+
+
+#include <Servo.h>
+#include <math.h>
+
+Servo pitchServo;
+Servo yawServo;
+
+const int pitchCenter = 90;
+const int yawCenter   = 85;
+const int radius = 30;     
+
+float theta = 0.0;
+const float step = 0.05;
+
+void setup() {
+  pitchServo.attach(9);
+  yawServo.attach(10);
+
+  pitchServo.write(pitchCenter);
+  yawServo.write(yawCenter);
+  delay(1500);
+}
+
+void loop() {
+  int pitchAngle = pitchCenter + radius * cos(theta);
+  int yawAngle   = yawCenter   + radius * sin(theta);
+
+  pitchServo.write(pitchAngle);
+  yawServo.write(yawAngle);
+
+  theta += step;
+  if (theta >= 2 * PI) theta -= 2 * PI;
+
+  delay(20);
+}
