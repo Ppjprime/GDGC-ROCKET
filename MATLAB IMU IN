@@ -1,0 +1,50 @@
+clear; clc;
+
+
+port = "COM13";   
+
+s = serialport(port,115200);
+flush(s);
+
+phi_data = [];
+theta_data = [];
+t_data = [];
+
+figure;
+h1 = animatedline('Color','r'); % phi
+h2 = animatedline('Color','b'); % theta
+legend('Phi','Theta');
+xlabel('Time (s)');
+ylabel('Angle (deg)');
+grid on;
+
+startTime = tic;
+
+while true
+    try
+        data = readline(s);
+        data = strtrim(data);
+
+        % remove < >
+        data = erase(data, ["<", ">"]);
+
+        values = str2double(split(data, ","));
+
+        if length(values) == 4 && all(~isnan(values))
+            phi       = values(1);
+            theta     = values(2);
+            phi_dot   = values(3);
+            theta_dot = values(4);
+
+            t = toc(startTime);
+
+            % Plot angles
+            addpoints(h1, t, phi);
+            addpoints(h2, t, theta);
+
+            drawnow limitrate;
+        end
+
+    catch
+    end
+end
