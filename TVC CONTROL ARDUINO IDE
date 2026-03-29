@@ -1,0 +1,116 @@
+#include <Wire.h>
+#include <MPU6050.h>
+#include <Servo.h>
+
+MPU6050 imu;
+Servo servo_pitch;
+Servo servo_yaw;
+
+const int SERVO_PITCH_PIN = 9;
+const int SERVO_YAW_PIN   = 10;
+
+const int SERVO_CENTER = 90;
+const int SERVO_LIMIT  = 20;
+
+float Kp = 2.0;
+float Kd = 0.2;
+
+const float Ts = 0.005; 
+
+float phi = 0, theta = 0;
+float phi_prev = 0, theta_prev = 0;
+
+float phi_zero = 0;
+float theta_zero = 0;
+
+unsigned long lastTime = 0;
+
+
+int serialDivider = 0;
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin();
+
+  servo_pitch.attach(SERVO_PITCH_PIN);
+  servo_yaw.attach(SERVO_YAW_PIN);
+
+  servo_pitch.write(SERVO_CENTER);
+  servo_yaw.write(SERVO_CENTER);
+
+  delay(1000);
+
+  imu.initialize();
+  imu.setSleepEnabled(false);
+
+  delay(1000);
+
+  const int samples = 500;
+  float phi_sum = 0;
+  float theta_sum = 0;
+
+  for (int i = 0; i < samples; i++) {
+    int16_t ax, ay, az;
+    imu.getAcceleration(&ax, &ay, &az);
+
+    float axf = ax;
+    float ayf = ay;
+    float azf = az;
+
+    float phi_acc = atan2(ayf, azf) * 180.0 / PI;
+    float theta_acc = atan2(-axf, sqrt(ayf*ayf + azf*azf)) * 180.0 / PI;
+
+    phi_sum += phi_acc;
+    theta_sum += theta_acc;
+    delay(5);
+  }
+
+  phi_zero   = phi_sum / samples;
+  theta_zero = theta_sum / samples;
+
+  lastTime = millis();
+}
+
+void loop() {
+  unsigned long now = millis();
+  if ((now - lastTime) < (Ts * 1000)) return;
+  lastTime = now;
+
+  int16_t ax, ay, az;
+  imu.getAcceleration(&ax, &ay, &az);
+
+  float axf = ax;
+  float ayf = ay;
+  float azf = az;
+
+  phi = atan2(ayf, azf) * 180.0 / PI - phi_zero;
+  theta = atan2(-axf, sqrt(ayf*ayf + azf*azf)) * 180.0 / PI - theta_zero;
+
+  float phi_dot = (phi - phi_prev) / Ts;
+  float theta_dot = (theta - theta_prev) / Ts;
+
+  phi_prev = phi;
+  theta_prev = theta;
+
+  float u_phi   = (Kp * phi   + Kd * phi_dot);
+  float u_theta = (Kp * theta + Kd * theta_dot);
+
+  u_phi   = constrain(u_phi,   -SERVO_LIMIT, SERVO_LIMIT);
+  u_theta = constrain(u_theta, -SERVO_LIMIT, SERVO_LIMIT);
+
+  servo_yaw.write(SERVO_CENTER - u_phi);
+  servo_pitch.write(SERVO_CENTER - u_theta);
+
+  serialDivider++;
+
+  if (serialDivider >= 3)   
+  {
+    serialDivider = 0;
+
+    Serial.print("<");
+    Serial.print(phi);
+    Serial.print(",");
+    Serial.print(theta);
+    Serial.println(">");
+  }
+}
